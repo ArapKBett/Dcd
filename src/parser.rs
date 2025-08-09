@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::{DateTime, TimeZone, Utc};
 use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
@@ -201,4 +200,4 @@ impl TransactionParser {
 
         None
     }
-                 }
+}

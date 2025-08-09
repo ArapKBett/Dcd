@@ -149,7 +149,7 @@ impl SolanaIndexer {
         let rpc_response: RpcResponse<Option<TransactionResponse>> = response.json().await?;
         Ok(rpc_response.result)
     }
-} !processed_signatures.contains(&sig.signature))
+} !processed_signatures.contains(&sig.signature)
                 .map(|sig| {
                     processed_signatures.insert(sig.signature.clone());
                     self.get_transaction(&sig.signature)

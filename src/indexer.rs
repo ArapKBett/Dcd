@@ -2,15 +2,12 @@ use anyhow::{anyhow, Result};
 use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::json;
-use solana_client::rpc_client::RpcClient;
-use solana_sdk::{commitment_config::CommitmentConfig, pubkey::Pubkey, signature::Signature};
-use std::{collections::HashSet, str::FromStr, time::Duration as StdDuration};
+use std::{collections::HashSet, time::Duration as StdDuration};
 
 use crate::types::*;
 use crate::parser::TransactionParser;
 
 pub struct SolanaIndexer {
-    rpc_client: RpcClient,
     http_client: Client,
     rpc_url: String,
 }
@@ -19,18 +16,12 @@ impl SolanaIndexer {
     pub fn new() -> Result<Self> {
         // Use Solana mainnet RPC endpoint
         let rpc_url = "https://api.mainnet-beta.solana.com".to_string();
-        
-        let rpc_client = RpcClient::new_with_commitment(
-            rpc_url.clone(),
-            CommitmentConfig::confirmed(),
-        );
 
         let http_client = Client::builder()
             .timeout(StdDuration::from_secs(30))
             .build()?;
 
         Ok(Self {
-            rpc_client,
             http_client,
             rpc_url,
         })
@@ -38,7 +29,7 @@ impl SolanaIndexer {
 
     pub async fn get_usdc_transfers(
         &self,
-        wallet: Pubkey,
+        wallet: &str,
         hours_back: u64,
     ) -> Result<Vec<UsdcTransfer>> {
         let cutoff_time = Utc::now() - Duration::hours(hours_back as i64);
@@ -48,7 +39,7 @@ impl SolanaIndexer {
         println!("🔍 Fetching transaction signatures for wallet...");
 
         // Get all signatures for the wallet
-        let signatures = self.get_signatures_for_address(&wallet).await?;
+        let signatures = self.get_signatures_for_address(wallet).await?;
         
         println!("📝 Found {} recent signatures", signatures.len());
 
@@ -67,17 +58,98 @@ impl SolanaIndexer {
 
         println!("⏰ {} signatures within {} hour window", recent_signatures.len(), hours_back);
 
-        // Process transactions in batches
-        const BATCH_SIZE: usize = 10;
-        let mut batch_count = 0;
+        // Process transactions sequentially
+        for (i, sig) in recent_signatures.iter().enumerate() {
+            if processed_signatures.contains(&sig.signature) {
+                continue;
+            }
 
-        for batch in recent_signatures.chunks(BATCH_SIZE) {
-            batch_count += 1;
-            println!("🔄 Processing batch {}/{}", batch_count, (recent_signatures.len() + BATCH_SIZE - 1) / BATCH_SIZE);
+            processed_signatures.insert(sig.signature.clone());
 
-            let batch_futures: Vec<_> = batch
-                .iter()
-                .filter(|sig| !processed_signatures.contains(&sig.signature))
+            if i % 10 == 0 {
+                println!("🔄 Processing transaction {}/{}", i + 1, recent_signatures.len());
+            }
+
+            match self.get_transaction(&sig.signature).await {
+                Ok(Some(transaction)) => {
+                    match TransactionParser::parse_usdc_transfers(&transaction, wallet) {
+                        Ok(mut transfers) => {
+                            all_transfers.append(&mut transfers);
+                        }
+                        Err(e) => {
+                            eprintln!("⚠️ Error parsing transaction {}: {}", sig.signature, e);
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // Transaction not found or null
+                }
+                Err(e) => {
+                    eprintln!("⚠️ Error fetching transaction {}: {}", sig.signature, e);
+                }
+            }
+
+            // Small delay between requests
+            tokio::time::sleep(StdDuration::from_millis(100)).await;
+        }
+
+        // Sort transfers by timestamp (newest first)
+        all_transfers.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        println!("✅ Found {} USDC transfers", all_transfers.len());
+
+        Ok(all_transfers)
+    }
+
+    async fn get_signatures_for_address(&self, address: &str) -> Result<Vec<GetSignaturesForAddressResponse>> {
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getSignaturesForAddress",
+            "params": [
+                address,
+                {
+                    "limit": 1000,
+                    "commitment": "confirmed"
+                }
+            ]
+        });
+
+        let response = self.http_client
+            .post(&self.rpc_url)
+            .json(&request)
+            .send()
+            .await?;
+
+        let rpc_response: RpcResponse<Vec<GetSignaturesForAddressResponse>> = response.json().await?;
+        Ok(rpc_response.result)
+    }
+
+    async fn get_transaction(&self, signature: &str) -> Result<Option<TransactionResponse>> {
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getTransaction",
+            "params": [
+                signature,
+                {
+                    "encoding": "json",
+                    "commitment": "confirmed",
+                    "maxSupportedTransactionVersion": 0
+                }
+            ]
+        });
+
+        let response = self.http_client
+            .post(&self.rpc_url)
+            .json(&request)
+            .send()
+            .await?;
+
+        let rpc_response: RpcResponse<Option<TransactionResponse>> = response.json().await?;
+        Ok(rpc_response.result)
+    }
+} !processed_signatures.contains(&sig.signature))
                 .map(|sig| {
                     processed_signatures.insert(sig.signature.clone());
                     self.get_transaction(&sig.signature)
@@ -247,4 +319,4 @@ impl SolanaIndexer {
 
         Ok(all_transfers)
     }
-          }
+}

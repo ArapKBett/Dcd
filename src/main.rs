@@ -2,18 +2,7 @@ use anyhow::{anyhow, Result};
 use chrono::{DateTime, Duration, Utc};
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use solana_client::{
-    rpc_client::RpcClient,
-    rpc_config::{RpcTransactionConfig, RpcAccountInfoConfig},
-    rpc_request::RpcRequest,
-};
-use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    pubkey::Pubkey,
-    signature::Signature,
-};
-use spl_token::instruction::TokenInstruction;
-use std::{collections::HashSet, str::FromStr};
+use std::collections::HashSet;
 
 mod types;
 mod parser;
@@ -46,11 +35,13 @@ async fn main() -> Result<()> {
     println!("📍 Wallet: {}", args.wallet);
     println!("⏰ Backfilling last {} hours", args.hours);
     
-    let wallet_pubkey = Pubkey::from_str(&args.wallet)
-        .map_err(|e| anyhow!("Invalid wallet address: {}", e))?;
+    // Validate wallet address format
+    if args.wallet.len() < 32 || args.wallet.len() > 44 {
+        return Err(anyhow!("Invalid wallet address format"));
+    }
     
     let indexer = SolanaIndexer::new()?;
-    let transfers = indexer.get_usdc_transfers(wallet_pubkey, args.hours).await?;
+    let transfers = indexer.get_usdc_transfers(&args.wallet, args.hours).await?;
     
     match args.output.as_str() {
         "json" => {
@@ -96,12 +87,6 @@ fn print_transfers_pretty(transfers: &[UsdcTransfer]) {
             total_sent += transfer.amount;
         }
         println!();
-        
-        if transfer.is_incoming {
-            total_received += transfer.amount;
-        } else {
-            total_sent += transfer.amount;
-        }
     }
     
     println!("═══════════════════════════════════════════════════════════════");

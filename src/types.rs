@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use solana_sdk::pubkey::Pubkey;
 
 // USDC mint address on Solana mainnet
 pub const USDC_MINT: &str = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -122,6 +121,3 @@ pub struct UiTokenAmount {
     #[serde(rename = "uiAmountString")]
     pub ui_amount_string: String,
 }
-
-// SPL Token program ID
-pub const SPL_TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";

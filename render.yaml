@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: solana-usdc-indexer
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: RUST_LOG
+        value: info
+    startCommand: ./indexer --wallet=7cMEhpt9y3inBNVv8fNnuaEbx7hKHZnLvR1KWKKxuDDU --hours=24 --output=json
+    
+  # Alternative as a cron job (runs once per hour)
+  - type: cron
+    name: solana-usdc-indexer-cron
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    schedule: "0 * * * *"  # Every hour
+    envVars:
+      - key: RUST_LOG
+        value: info
+    startCommand: ./indexer --wallet=7cMEhpt9y3inBNVv8fNnuaEbx7hKHZnLvR1KWKKxuDDU --hours=24 --output=json

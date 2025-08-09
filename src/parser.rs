@@ -1,6 +1,5 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, TimeZone, Utc};
-use solana_sdk::pubkey::Pubkey;
 use std::str::FromStr;
 
 use crate::types::*;
@@ -10,7 +9,7 @@ pub struct TransactionParser;
 impl TransactionParser {
     pub fn parse_usdc_transfers(
         tx: &TransactionResponse,
-        target_wallet: &Pubkey,
+        target_wallet: &str,
     ) -> Result<Vec<UsdcTransfer>> {
         let mut transfers = Vec::new();
         
@@ -48,7 +47,7 @@ impl TransactionParser {
     fn parse_token_balance_changes(
         meta: &TransactionMeta,
         account_keys: &[String],
-        target_wallet: &Pubkey,
+        target_wallet: &str,
         signature: &str,
         timestamp: DateTime<Utc>,
     ) -> Result<Vec<UsdcTransfer>> {
@@ -58,8 +57,6 @@ impl TransactionParser {
         let post_balances = meta.post_token_balances.as_ref().unwrap_or(&vec![]);
 
         // Find USDC token accounts
-        let usdc_mint = Pubkey::from_str(USDC_MINT)?;
-
         for post_balance in post_balances {
             if post_balance.mint != USDC_MINT {
                 continue;
@@ -81,14 +78,9 @@ impl TransactionParser {
             }
 
             // Get the owner of the token account
-            let account_address = account_keys.get(post_balance.account_index as usize)
-                .ok_or_else(|| anyhow!("Account index out of bounds"))?;
-
-            // Try to determine the owner from the token balance or account keys
             let owner = post_balance.owner.as_ref()
                 .or_else(|| {
                     // Fallback: try to find the owner in account keys
-                    // This is a simplified approach
                     if post_balance.account_index > 0 {
                         account_keys.get((post_balance.account_index - 1) as usize)
                     } else {
@@ -97,40 +89,36 @@ impl TransactionParser {
                 });
 
             if let Some(owner_str) = owner {
-                let owner_pubkey = Pubkey::from_str(owner_str).ok();
-                
-                if let Some(owner_pubkey) = owner_pubkey {
-                    if owner_pubkey == *target_wallet {
-                        // This is our target wallet's token account
-                        if amount_change > 0.0 {
-                            // Received tokens - need to find sender
-                            let from_address = Self::find_sender_address(
-                                meta, account_keys, post_balance.account_index
-                            ).unwrap_or_else(|| "Unknown".to_string());
+                if owner_str == target_wallet {
+                    // This is our target wallet's token account
+                    if amount_change > 0.0 {
+                        // Received tokens - need to find sender
+                        let from_address = Self::find_sender_address(
+                            meta, account_keys, post_balance.account_index
+                        ).unwrap_or_else(|| "Unknown".to_string());
 
-                            transfers.push(UsdcTransfer {
-                                signature: signature.to_string(),
-                                timestamp,
-                                from_address,
-                                to_address: target_wallet.to_string(),
-                                amount: amount_change,
-                                is_incoming: true,
-                            });
-                        } else if amount_change < 0.0 {
-                            // Sent tokens - need to find recipient
-                            let to_address = Self::find_recipient_address(
-                                meta, account_keys, post_balance.account_index
-                            ).unwrap_or_else(|| "Unknown".to_string());
+                        transfers.push(UsdcTransfer {
+                            signature: signature.to_string(),
+                            timestamp,
+                            from_address,
+                            to_address: target_wallet.to_string(),
+                            amount: amount_change,
+                            is_incoming: true,
+                        });
+                    } else if amount_change < 0.0 {
+                        // Sent tokens - need to find recipient
+                        let to_address = Self::find_recipient_address(
+                            meta, account_keys, post_balance.account_index
+                        ).unwrap_or_else(|| "Unknown".to_string());
 
-                            transfers.push(UsdcTransfer {
-                                signature: signature.to_string(),
-                                timestamp,
-                                from_address: target_wallet.to_string(),
-                                to_address,
-                                amount: amount_change.abs(),
-                                is_incoming: false,
-                            });
-                        }
+                        transfers.push(UsdcTransfer {
+                            signature: signature.to_string(),
+                            timestamp,
+                            from_address: target_wallet.to_string(),
+                            to_address,
+                            amount: amount_change.abs(),
+                            is_incoming: false,
+                        });
                     }
                 }
             }

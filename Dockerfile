@@ -20,13 +20,13 @@ RUN mkdir src && echo "fn main() {println!(\"placeholder\");}" > src/main.rs
 # Build dependencies
 RUN cargo build --release
 
-# Remove the dummy build artifacts
-RUN rm -rf src target/release/deps/solana_usdc_indexer* target/release/indexer*
+# Remove ALL build artifacts including the binary
+RUN rm -rf src target/release/deps/solana_usdc_indexer* target/release/indexer target/release/build target/release/.fingerprint
 
-# Copy source code
+# Copy actual source code
 COPY src ./src
 
-# Build the application
+# Build the final application
 RUN cargo build --release
 
 # Runtime image

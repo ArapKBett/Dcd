@@ -12,7 +12,7 @@ services:
       - key: RUST_LOG
         value: info
       - key: RUSTC_VERSION
-        value: "1.83"
+        value: "nightly"
     startCommand: ./indexer --wallet=7cMEhpt9y3inBNVv8fNnuaEbx7hKHZnLvR1KWKKxuDDU --hours=24 --output=json
     
   # Alternative as a cron job (runs once per hour)
@@ -27,5 +27,5 @@ services:
       - key: RUST_LOG
         value: info
       - key: RUSTC_VERSION
-        value: "1.83"
+        value: "nightly"
     startCommand: ./indexer --wallet=7cMEhpt9y3inBNVv8fNnuaEbx7hKHZnLvR1KWKKxuDDU --hours=24 --output=json

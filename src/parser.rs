@@ -533,4 +533,43 @@ impl TransactionParser {
                 .and_then(|pb| pb.ui_token_amount.ui_amount)
                 .unwrap_or(0.0);
 
-            if pre_amount > post_amou
+            if pre_amount > post_amount {
+                return pre_balance.owner.clone()
+                    .or_else(|| account_keys.get(pre_balance.account_index as usize).cloned());
+            }
+        }
+
+        None
+    }
+
+    fn find_recipient_address(
+        meta: &TransactionMeta,
+        account_keys: &[String],
+        sender_account_index: u8,
+    ) -> Option<String> {
+        // Look through post-token balances to find who had an increase
+        let pre_balances = meta.pre_token_balances.as_ref()?;
+        let post_balances = meta.post_token_balances.as_ref()?;
+
+        for post_balance in post_balances {
+            if post_balance.mint != USDC_MINT || post_balance.account_index == sender_account_index {
+                continue;
+            }
+
+            let pre_balance = pre_balances.iter()
+                .find(|pb| pb.account_index == post_balance.account_index);
+
+            let pre_amount = pre_balance
+                .and_then(|pb| pb.ui_token_amount.ui_amount)
+                .unwrap_or(0.0);
+            let post_amount = post_balance.ui_token_amount.ui_amount.unwrap_or(0.0);
+
+            if post_amount > pre_amount {
+                return post_balance.owner.clone()
+                    .or_else(|| account_keys.get(post_balance.account_index as usize).cloned());
+            }
+        }
+
+        None
+    }
+}

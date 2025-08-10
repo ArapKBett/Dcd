@@ -1,4 +1,4 @@
-# Use the latest Rust version (1.83) that supports all modern dependencies
+# Use the latest Rust version (1.83) 
 FROM rust:1.83-slim as builder
 
 # Install dependencies

@@ -1,5 +1,5 @@
-# Use Rust nightly to support edition2024
-FROM rust:nightly as builder
+# Use Rust nightly from the correct repository to support edition2024
+FROM rustlang/rust:nightly as builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \

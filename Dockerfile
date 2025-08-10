@@ -1,6 +1,5 @@
-
-# Use the latest Rust version (1.83) that supports all modern dependencies
-FROM rust:1.83-slim as builder
+# Use Rust nightly to support edition2024
+FROM rust:nightly-slim as builder
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -28,42 +27,6 @@ RUN rm -rf src target/release/deps/solana_usdc_indexer* target/release/indexer t
 COPY src ./src
 
 # Build the final application
-RUN cargo build --release
-
-# Runtime image
-FROM debian:bookworm-slim
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    libssl3 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create app user
-RUN useradd -r -s /bin/false appuser
-
-# Set working directory
-WORKDIR /app
-
-# Copy the binary from builder
-COPY --from=builder /app/target/release/indexer /app/indexer
-
-# Change ownership
-RUN chown -R appuser:appuser /app
-
-# Switch to app user
-USER appuser
-
-# Expose port (if needed for future web interface)
-EXPOSE 8080
-
-# Default command
-CMD ["./indexer"]
-
-# Copy source code
-COPY src ./src
-
-# Build the application
 RUN cargo build --release
 
 # Runtime image
